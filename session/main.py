@@ -1,7 +1,7 @@
 import torch
 from args import get_args
 from dataset import load_data
-from model import ImprovedPneumoniaDetectionCNN3
+from model import initialize_model
 from trainer import train_model
 from evaluate import evaluate_model
 from utils import plot_metrics, save_results, plot_roc_curve, plot_confusion_matrix
@@ -37,27 +37,29 @@ def main():
 
     # Initialize the model
     print("Initializing the model...")
-    model = ImprovedPneumoniaDetectionCNN3().to(device)
+    model = initialize_model(model_name=args.model_name).to(device)
 
     # Train the model
     print("Starting training...")
     fold_accuracies, fold_val_losses, all_train_losses, all_val_losses, all_val_accuracies = train_model(
-        model=model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        device=device,
-        args=args
-    )
+    model=model,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    test_loader=test_loader, 
+    device=device,
+    args=args
+)
+
 
     # Save training metrics
     if args.k_folds > 1:
         save_results(fold_accuracies, fold_val_losses, args.k_folds, args.results_csv)
 
     # Plot metrics for the last fold or overall (if applicable)
-    if args.k_folds == 1:
-        plot_metrics(all_train_losses, all_val_losses, all_val_accuracies)
-    else:
-        print("Metrics for each fold saved in CSV file.")
+    plot_metrics(
+        all_train_losses, all_val_losses, all_val_accuracies,
+        output_file=f"plots/{args.model_name}_training_metrics.png"
+    )
 
     # Evaluate the model on the test set
     print("Evaluating the model on the test set...")
@@ -69,8 +71,14 @@ def main():
 
     # Plot and save the confusion matrix and ROC curve
     print("Plotting the confusion matrix and ROC curve...")
-    plot_confusion_matrix(test_labels, test_predictions, output_file="plots/confusion_matrix.png")
-    plot_roc_curve(test_labels, test_predictions, output_file="plots/roc_curve.png")
+    plot_confusion_matrix(
+        test_labels, test_predictions, class_names=["Normal", "Pneumonia"],
+        output_file=f"plots/{args.model_name}_confusion_matrix.png"
+    )
+    plot_roc_curve(
+        test_labels, test_predictions,
+        output_file=f"plots/{args.model_name}_roc_curve.png"
+    )
 
     print("\nEvaluation Metrics:")
     for key, value in evaluation_results["metrics"].items():
