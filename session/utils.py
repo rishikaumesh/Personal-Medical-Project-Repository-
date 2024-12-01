@@ -34,7 +34,6 @@ def plot_metrics(train_losses, val_losses, val_accuracies, output_file="plots/tr
     print(f"Training metrics saved at: {output_file}")
     plt.close()
 
-
 def plot_roc_curve(labels, predictions, output_file="plots/roc_curve.png"):
     """
     Plot and save the ROC curve.
@@ -55,7 +54,6 @@ def plot_roc_curve(labels, predictions, output_file="plots/roc_curve.png"):
     print(f"ROC curve saved at: {output_file}")
     plt.close()
 
-
 def plot_confusion_matrix(labels, predictions, class_names, output_file="plots/confusion_matrix.png"):
     """
     Plot and save the confusion matrix.
@@ -71,7 +69,6 @@ def plot_confusion_matrix(labels, predictions, class_names, output_file="plots/c
     plt.savefig(output_file)
     print(f"Confusion matrix saved at: {output_file}")
     plt.close()
-
 
 def save_results(fold_accuracies, fold_val_losses, k_folds, output_file="kfold_results.csv"):
     """
