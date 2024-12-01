@@ -38,6 +38,11 @@ def get_args():
     parser.add_argument('--early_stopping', action='store_true', help='Enable early stopping during training')
     parser.add_argument('--early_stopping_patience', type=int, default=10, help='Patience for early stopping')
 
+    # Model selection
+    parser.add_argument('--model_name', type=str, default='ImprovedPneumoniaDetectionCNN3',
+                        choices=['PneumoniaDetectionCNN', 'PneumoniaDetectionCNN2', 'ImprovedPneumoniaDetectionCNN3'],
+                        help='Name of the model to use for training or evaluation')
+
     # Device configuration
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to use for training (cuda or cpu)')
 
