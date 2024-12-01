@@ -48,7 +48,6 @@ for model_name, csv_file in models.items():
     except KeyError as e:
         print(f"KeyError: {e}. Check the column names in the CSV file {csv_file}.")
 
-# Convert summary to DataFrame for better display
 summary_df = pd.DataFrame(summary)
 print(summary_df)
 
