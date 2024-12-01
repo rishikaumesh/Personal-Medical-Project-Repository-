@@ -1,4 +1,3 @@
-
 import os
 import torch
 import torch.nn as nn
@@ -9,7 +8,7 @@ from utils import plot_metrics, save_results, plot_roc_curve, plot_confusion_mat
 from evaluate import evaluate_model
 
 
-def train_model(model, train_loader, val_loader, device, args):
+def train_model(model, train_loader, val_loader, test_loader, device, args):
     """
     Train the Pneumonia Detection CNN model with K-Fold Cross-Validation.
 
@@ -17,13 +16,14 @@ def train_model(model, train_loader, val_loader, device, args):
         model (torch.nn.Module): The PyTorch model to train.
         train_loader (DataLoader): DataLoader for training data.
         val_loader (DataLoader): DataLoader for validation data.
+        test_loader (DataLoader): DataLoader for test data.
         device (torch.device): Device to use for training.
         args (Namespace): Argument parser namespace with hyperparameters.
 
     Returns:
         tuple: Training metrics including fold accuracies, losses, and validation accuracies.
     """
-    print(f"Training model on device: {device}")
+    print(f"Training model '{args.model_name}' on device: {device}")
 
     # Hyperparameters
     num_epochs = args.num_epochs
@@ -33,6 +33,12 @@ def train_model(model, train_loader, val_loader, device, args):
 
     # Define K-Fold cross-validator
     kf = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+
+    # Directories for results and plots
+    results_dir = f"results/{args.model_name}"
+    plots_dir = f"plots/{args.model_name}"
+    os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(plots_dir, exist_ok=True)
 
     # Lists to store metrics across all folds
     all_train_losses = []
@@ -61,8 +67,9 @@ def train_model(model, train_loader, val_loader, device, args):
         optimizer = optim.RMSprop(model.parameters(), lr=learning_rate)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=3, factor=0.3, verbose=True)
 
-        # Track best validation accuracy
-        best_val_accuracy = 0.0
+        # Early stopping variables
+        best_val_loss = float("inf")
+        patience_counter = 0
 
         # Metrics for each fold
         train_losses, val_losses, val_accuracies = [], [], []
@@ -109,12 +116,22 @@ def train_model(model, train_loader, val_loader, device, args):
             scheduler.step(val_accuracy)
 
             # Save the best model for this fold
-            if val_accuracy > best_val_accuracy:
-                best_val_accuracy = val_accuracy
-                torch.save(model.state_dict(), f"best_model_fold_{fold + 1}.pth")
-                print("Best model for this fold saved.")
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save(model.state_dict(), f"{results_dir}/best_model_fold_{fold + 1}.pth")
+                print(f"Best model for Fold {fold + 1} saved.")
 
-        fold_accuracies.append(best_val_accuracy)
+            # Early stopping
+            if args.early_stopping:
+                if val_loss < best_val_loss:
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                if patience_counter > args.early_stopping_patience:
+                    print("Early stopping triggered.")
+                    break
+
+        fold_accuracies.append(max(val_accuracies))
         fold_val_losses.append(min(val_losses))
         all_train_losses.extend(train_losses)
         all_val_losses.extend(val_losses)
@@ -128,22 +145,34 @@ def train_model(model, train_loader, val_loader, device, args):
     print(f"Average Validation Loss across {k_folds} folds: {avg_val_loss:.4f}")
 
     # Save final plots after all folds are complete
-    os.makedirs("plots", exist_ok=True)
-    plot_metrics(all_train_losses, all_val_losses, all_val_accuracies, output_file="plots/training_metrics.png")
+    plot_metrics(
+        all_train_losses, all_val_losses, all_val_accuracies,
+        output_file=f"{plots_dir}/training_metrics.png"
+    )
 
-    # Evaluate on test set for confusion matrix and ROC curve
-    print("Evaluating on test set...")
-    test_metrics = evaluate_model(model, val_loader, device)  # Use test_loader if available
+    # Evaluate on the test set for confusion matrix and ROC curve
+    print("Evaluating on the test set...")
+    test_metrics = evaluate_model(model, test_loader, device)  # Use test_loader if available
     test_predictions = test_metrics["predictions"]
     test_labels = test_metrics["labels"]
 
-    plot_confusion_matrix(test_labels, test_predictions, output_file="plots/confusion_matrix.png")
-    plot_roc_curve(test_labels, test_predictions, output_file="plots/roc_curve.png")
+    plot_confusion_matrix(
+        test_labels, test_predictions, class_names=["Normal", "Pneumonia"],
+        output_file=f"{plots_dir}/confusion_matrix.png"
+    )
+    plot_roc_curve(
+        test_labels, test_predictions,
+        output_file=f"{plots_dir}/roc_curve.png"
+    )
     print("Final plots (ROC curve and confusion matrix) saved.")
 
     # Save fold results to a CSV file
-    save_results(fold_accuracies, fold_val_losses, k_folds, output_file="results/kfold_results.csv")
+    save_results(
+        fold_accuracies, fold_val_losses, k_folds,
+        output_file=f"{results_dir}/kfold_results.csv"
+    )
 
     print("Training complete. Results and plots saved.")
 
     return fold_accuracies, fold_val_losses, all_train_losses, all_val_losses, all_val_accuracies
+
